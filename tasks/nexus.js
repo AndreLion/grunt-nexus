@@ -45,24 +45,18 @@ module.exports = function(grunt) {
       var folder = data.baseUrl + '/' + data.repository + '/' + data.groupId + '/' + artifact.id + '/' + artifact.version;
       var uri = data.baseUrl + '/' + data.repository + '/' + data.groupId + '/' + artifact.id + '/' + artifact.version + '/' + file;
       var dir = data.path + '/' + artifact.id;
-      var tempPath = temp.path({prefix: 'grunt-nexus-', suffix: data.extension});
+      var target;
+      if (data.unpack) {
+        target = temp.path({prefix: 'grunt-nexus-', suffix: data.extension});
+      } else {
+        target = data.path + '/' + file;
+      }
 
       grunt.log.ok('Downloading ' + uri);
-      download(uri, tempPath, data.strictSSL)
+      download(uri, target, data.strictSSL)
       .then(function() {
         if (data.unpack) {
-          return extract(tempPath, dir);
-        } else {
-          console.log('I need to move the zip file from',tempPath, 'to ', data.path + '/' + file);
-          var source = fs.createReadStream(tempPath);
-          var dest = fs.createWriteStream(data.path + '/' + file);
-          source.pipe(dest);
-          source.on('end', function() {
-            grunt.log.ok('Successfully downloaded ' + file);
-          });
-          source.on('error', function(err) {
-            grunt.log.error('Error when '+error.when+' '+artifact.id+':'+artifact.version+': '+error.message);
-          });
+          return extract(target, dir);
         }
       })
       .then(function() {
