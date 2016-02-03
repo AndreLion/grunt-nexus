@@ -2,6 +2,8 @@ var temp     = require('temp');
 var download = require('./util/download');
 var extract  = require('./util/extract');
 var fs       = require('fs');
+var xml2js   = require('xml2js');
+var META_FILE_NAME = 'maven-metadata.xml';
 
 module.exports = function(grunt) {
 
@@ -43,7 +45,8 @@ module.exports = function(grunt) {
       }
       file = file.join('-') + data.extension;
       var folder = data.baseUrl + '/' + data.repository + '/' + data.groupId + '/' + artifact.id + '/' + artifact.version;
-      var uri = data.baseUrl + '/' + data.repository + '/' + data.groupId + '/' + artifact.id + '/' + artifact.version + '/' + file;
+      var baseUri = data.baseUrl + '/' + data.repository + '/' + data.groupId + '/' + artifact.id + '/' + artifact.version;
+      var uri = baseUri + '/' + file;
       var dir = data.path + '/' + artifact.id;
       var target;
       if (data.unpack) {
@@ -63,9 +66,44 @@ module.exports = function(grunt) {
         grunt.log.ok('Successfully installed '+artifact.id+':'+artifact.version);
         callback();
       }, function(error) {
-        grunt.log.error('Error when '+error.when+' '+artifact.id+':'+artifact.version+': '+error.message);
-        anErrorOccurred = true;
-        callback();
+        if (error.message.indexOf('404') !== -1) {
+          var metaUri = baseUri + '/' + META_FILE_NAME;
+          var metaTarget = data.path + '/' + artifact.id + '-' + artifact.version + '-' + META_FILE_NAME; 
+          grunt.log.ok('Fetching maven metadata from ' + metaUri);
+          download(metaUri, metaTarget, data.strictSSL)
+          .then(function() {
+            var parser = new xml2js.Parser();
+            fs.readFile(metaTarget, function(err, _data) {
+                parser.parseString(_data, function (err, result) {
+                    var meta = result.metadata.versioning[0].snapshotVersions[0].snapshotVersion[0];
+                    file = [artifact.id, meta.value, meta.classifier].join('-') + data.extension;
+                    uri = baseUri + '/' + file;
+                    grunt.log.ok('Downloading ' + uri);
+                    download(uri, data.path + '/' + file, data.strictSSL)
+                    .then(function() {
+                        fs.unlink(target, function() {
+                          fs.unlink(metaTarget, function() {
+                            grunt.log.ok('Successfully downloaded '+ data.path + '/' + file);
+                            callback();
+                          })
+                        })
+                    }, function(error) {
+                      grunt.log.error('Error when '+error.when+' '+artifact.id+':'+artifact.version+': '+error.message);
+                      anErrorOccurred = true;
+                      callback();
+                    });
+                });
+            });
+          }, function(error) {
+            grunt.log.error('Error when '+error.when+' '+artifact.id+':'+artifact.version+': '+error.message);
+            anErrorOccurred = true;
+            callback();
+          });
+        } else {
+          grunt.log.error('Error when '+error.when+' '+artifact.id+':'+artifact.version+': '+error.message);
+          anErrorOccurred = true;
+          callback();
+        }
       });
 
     }, function(error) {
