@@ -76,7 +76,7 @@ module.exports = function(grunt) {
             fs.readFile(metaTarget, function(err, _data) {
                 parser.parseString(_data, function (err, result) {
                     var meta = result.metadata.versioning[0].snapshotVersions[0].snapshotVersion[0];
-                    file = [artifact.id, meta.value, meta.classifier].join('-') + data.extension;
+                    file = [artifact.id, meta.value, data.classifier].join('-') + data.extension;
                     uri = baseUri + '/' + file;
                     grunt.log.ok('Downloading ' + uri);
                     download(uri, data.path + '/' + file, data.strictSSL)
